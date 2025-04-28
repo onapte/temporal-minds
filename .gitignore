@@ -1,0 +1,3 @@
+venv/
+temporal_minds_rag/__pycache__
+*.pyc
