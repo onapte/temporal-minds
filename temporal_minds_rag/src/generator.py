@@ -40,7 +40,7 @@ def generate_answer(persona_name, query, retrieved_facts):
 
         {query}
 
-        Do not use any knowledge discovered after your time.
+        Do not use any knowledge discovered after your time. Optionally, give a one-line answer towards the end of your response if you were to use any knowledge discovered after your time.
         """
 
     if generator.task == "text2text-generation":
