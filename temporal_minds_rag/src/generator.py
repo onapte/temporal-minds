@@ -1,55 +1,74 @@
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
 
-def load_generator(model_choice="flan"):
-    device = -1
-
-    if model_choice == "flan":
+def initialize_generator(model_name="flan"):
+    """Initializes a text generation pipeline based on the model name."""
+    if model_name == "flan":
         return pipeline(
-            "text2text-generation",
+            task="text2text-generation",
             model="google/flan-t5-small",
-            device=device
+            device=-1
         )
 
-    elif model_choice == "falcon":
+    elif model_name == "falcon":
         model_id = "tiiuae/falcon-rw-1b"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(model_id)
-
+        
         return pipeline(
-            "text-generation",
+            task="text-generation",
             model=model,
             tokenizer=tokenizer,
-            device=device
+            device=-1
         )
 
     else:
-        raise NotImplementedError
+        raise ValueError(f"Unsupported model: {model_name}")
+
+
+def format_prompt(persona, question, facts):
+    """Constructs a prompt given a persona, question, and list of facts."""
+    joined_facts = "\n".join(facts)
+    return (
+        f"You are {persona}, a historical figure.\n"
+        f"Only use the following facts known in your era:\n\n"
+        f"{joined_facts}\n\n"
+        f"Answer the user's question:\n\n"
+        f"{question}\n\n"
+        f"Do not use any knowledge discovered after your time. "
+        f"Optionally, give a one-line answer towards the end of your response "
+        f"if you were to use any knowledge discovered after your time."
+    )
+
+
+def generate_response(generator, persona, question, facts):
+    """Generates a response from a given model pipeline."""
+    prompt = format_prompt(persona, question, facts)
+
+    generation_args = {
+        "max_length": 256,
+        "do_sample": True,
+        "temperature": 0.5
+    }
+
+    outputs = generator(prompt, **generation_args)
     
-generator = load_generator()   
+    if isinstance(outputs, list) and "generated_text" in outputs[0]:
+        return outputs[0]["generated_text"]
+    return outputs[0]  # fallback for potential model-specific output formats
 
-def generate_answer(persona_name, query, retrieved_facts):
-    context = "\n".join(retrieved_facts)
-    prompt = f"""
-        You are {persona_name}, a historical figure.
-        Only use the following facts known in your era:
 
-        {context}
+# Usage example
+generator_pipeline = initialize_generator("flan")
+response = generate_response(
+    generator_pipeline,
+    persona="Aristotle",
+    question="What is the nature of the universe?",
+    facts=[
+        "The universe is composed of four elements: earth, water, air, and fire.",
+        "Celestial bodies are made of aether, a fifth element.",
+        "The Earth is at the center of the universe."
+    ]
+)
 
-        Answer the user's question:
-
-        {query}
-
-        Do not use any knowledge discovered after your time. Optionally, give a one-line answer towards the end of your response if you were to use any knowledge discovered after your time.
-        """
-
-    if generator.task == "text2text-generation":
-        result = generator(prompt, max_length=256, do_sample=True, temperature=0.5)
-        return result[0]['generated_text']
-
-    elif generator.task == "text-generation":
-        result = generator(prompt, max_length=256, do_sample=True, temperature=0.5)
-        return result[0]['generated_text']
-
-    else:
-        raise NotImplementedError
+print(response)
